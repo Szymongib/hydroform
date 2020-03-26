@@ -131,6 +131,12 @@ func (c GenericClient) ApplyResources(resources []K8sObject) error {
 func (c GenericClient) applyObject(client dynamic.ResourceInterface, unstructuredObject *unstructured.Unstructured) error {
 	_, err := client.Create(unstructuredObject, v1.CreateOptions{})
 	if err != nil {
+		if k8serrors.IsConflict(err) {
+			_, err := client.Update(unstructuredObject, v1.UpdateOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to update object %s of kind %s: %s", unstructuredObject.GetName(), unstructuredObject.GetKind(), err.Error())
+			}
+		}
 		return fmt.Errorf("failed to create object %s of kind %s: %s", unstructuredObject.GetName(), unstructuredObject.GetKind(), err.Error())
 	}
 
