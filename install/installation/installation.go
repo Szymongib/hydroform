@@ -78,23 +78,6 @@ type InstallationState struct {
 	Description string
 }
 
-func CheckInstallationState(kubeconfig *rest.Config) (InstallationState, error) {
-	installationClient, err := installationClientset.NewForConfig(kubeconfig)
-	if err != nil {
-		return InstallationState{}, err
-	}
-
-	installationCR, err := installationClient.
-		InstallerV1alpha1().
-		Installations(defaultInstallationResourceNamespace).
-		Get(kymaInstallationName, metav1.GetOptions{})
-	if err != nil {
-		return InstallationState{}, err
-	}
-
-	return getInstallationState(*installationCR)
-}
-
 func TriggerUninstall(kubeconfig *rest.Config) error {
 	installationClient, err := installationClientset.NewForConfig(kubeconfig)
 	if err != nil {
@@ -197,7 +180,7 @@ func (k KymaInstaller) PrepareInstallation(artifacts Installation) error {
 		return err
 	}
 
-	err = k.deployInstaller(artifacts.InstallerYaml)
+	err = k.deployInstaller(artifacts.InstallerYaml, false)
 	if err != nil {
 		return err
 	}
@@ -209,6 +192,29 @@ func (k KymaInstaller) PrepareInstallation(artifacts Installation) error {
 
 	k.infof("Ready to start installation.")
 	return nil
+}
+
+// DeployTiller applies tiller resources to the clusters
+func (k KymaInstaller) DeployTiller(tillerYaml string) error {
+	k.infof("Preparing Tiller installation...")
+	k8sTillerObjects, err := k8s.ParseYamlToK8sObjects(k.decoder, tillerYaml)
+	if err != nil {
+		return fmt.Errorf("failed to parse Tiller yaml file to Kubernetes dynamicClientObjects: %w", err)
+	}
+
+	k.infof("Deploying Tiller...")
+	err = k.k8sGenericClient.ApplyResources(k8sTillerObjects)
+	if err != nil {
+		return fmt.Errorf("failed to apply Tiller resources: %w", err)
+	}
+	k.infof("Tiller applied")
+
+	return nil
+}
+
+// DeployInstaller deploys Kyma installer
+func (k KymaInstaller) DeployInstaller(installerYaml string) error {
+	return k.deployInstaller(installerYaml, true)
 }
 
 // StartInstallation triggers Kyma installation to start.
@@ -266,7 +272,7 @@ func (k KymaInstaller) installTiller(tillerYaml string) error {
 	return nil
 }
 
-func (k KymaInstaller) deployInstaller(installerYaml string) error {
+func (k KymaInstaller) deployInstaller(installerYaml string, startInstallation bool) error {
 	k.infof("Deploying Installer...")
 
 	k8sInstallerObjects, err := k8s.ParseYamlToK8sObjects(k.decoder, installerYaml)
@@ -281,8 +287,10 @@ func (k KymaInstaller) deployInstaller(installerYaml string) error {
 	}
 
 	_, found := installationCR.Labels[installationActionLabel]
-	if found {
+	if found && !startInstallation {
 		delete(installationCR.Labels, installationActionLabel)
+	} else if !found && startInstallation {
+		installationCR.Labels[installationActionLabel] = "install"
 	}
 
 	err = k.k8sGenericClient.ApplyResources(k8sInstallerObjects)

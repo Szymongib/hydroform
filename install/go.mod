@@ -3,6 +3,8 @@ module github.com/kyma-incubator/hydroform/install
 go 1.13
 
 require (
+	github.com/gogo/protobuf v0.0.0-20171007142547-342cbe0a0415
+	github.com/google/gofuzz v0.0.0-20170612174753-24818f796faf
 	github.com/kyma-project/kyma v0.5.1-0.20191106070956-5aa08d114ca0
 	github.com/pkg/errors v0.8.1
 	github.com/smartystreets/goconvey v1.6.4 // indirect
