@@ -79,6 +79,52 @@ type InstallationState struct {
 	Description string
 }
 
+func CheckInstallationState(kubeconfig *rest.Config) (InstallationState, error) {
+	installationClient, err := installationClientset.NewForConfig(kubeconfig)
+	if err != nil {
+		return InstallationState{}, err
+	}
+
+	installationCR, err := installationClient.
+		InstallerV1alpha1().
+		Installations(defaultInstallationResourceNamespace).
+		Get(kymaInstallationName, metav1.GetOptions{})
+	if err != nil {
+		return InstallationState{}, err
+	}
+
+	return getInstallationState(*installationCR)
+}
+
+func IsInstallationStarted(kubeconfig *rest.Config) (bool, error) {
+	installationClient, err := installationClientset.NewForConfig(kubeconfig)
+	if err != nil {
+		return false, err
+	}
+
+	installationCR, err := installationClient.
+		InstallerV1alpha1().
+		Installations(defaultInstallationResourceNamespace).
+		Get(kymaInstallationName, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	action, found := installationCR.Labels[installationActionLabel]
+	if !found {
+		return false, nil
+	}
+
+	if action != "install" {
+		return false, nil
+	}
+
+	return true, nil
+}
+
 func TriggerUninstall(kubeconfig *rest.Config) error {
 	installationClient, err := installationClientset.NewForConfig(kubeconfig)
 	if err != nil {
