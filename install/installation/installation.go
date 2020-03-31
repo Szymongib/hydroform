@@ -57,6 +57,7 @@ const (
 type Installer interface {
 	PrepareInstallation(installation Installation) error
 	StartInstallation(context context.Context) (<-chan InstallationState, <-chan error, error)
+	DeployTiller(tillerYaml string) error
 }
 
 type Logger interface {
@@ -109,7 +110,7 @@ func TriggerUninstall(kubeconfig *rest.Config) error {
 }
 
 // NewKymaInstaller initializes new KymaInstaller configured to work with the cluster from provided Kubeconfig
-func NewKymaInstaller(kubeconfig *rest.Config, opts ...InstallationOption) (Installer, error) {
+func NewKymaInstaller(kubeconfig *rest.Config, opts ...InstallationOption) (*KymaInstaller, error) {
 	options := &installationOptions{
 		installationCRModificationFunc: func(installation *v1alpha1.Installation) {},
 		tillerWaitTime:                 defaultTillerWaitTimeout,
@@ -212,7 +213,7 @@ func (k KymaInstaller) DeployTiller(tillerYaml string) error {
 	return nil
 }
 
-// DeployInstaller deploys Kyma installer
+// DeployInstaller deploys Kyma installer and starts installation
 func (k KymaInstaller) DeployInstaller(installerYaml string) error {
 	return k.deployInstaller(installerYaml, true)
 }
